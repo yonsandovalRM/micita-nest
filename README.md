@@ -27,8 +27,6 @@ proyecto/
 # Solo PostgreSQL
 docker-compose up -d postgres
 
-# PostgreSQL + pgAdmin
-docker-compose --profile admin up -d
 ```
 
 ### Detener los servicios
@@ -42,9 +40,6 @@ docker-compose down
 ```bash
 # Logs de PostgreSQL
 docker-compose logs -f postgres
-
-# Logs de pgAdmin
-docker-compose logs -f pgadmin
 ```
 
 ### Reiniciar servicios
@@ -136,10 +131,10 @@ docker-compose down
 
 # Eliminar volúmenes y datos
 docker-compose down -v
-rm -rf postgres-data pgadmin-data
+rm -rf postgres-data
 
 # Opcional: eliminar imágenes
-docker rmi postgres:15-alpine dpage/pgadmin4:latest
+docker rmi postgres:15-alpine
 ```
 
 ## Variables de entorno importantes
@@ -165,7 +160,7 @@ POSTGRES_PORT=5433
 
 ```bash
 # En Linux/Mac, ajustar permisos
-sudo chown -R $USER:$USER postgres-data pgadmin-data
+sudo chown -R $USER:$USER postgres-data
 ```
 
 ### Resetear contraseña de PostgreSQL
