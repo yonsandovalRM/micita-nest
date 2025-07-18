@@ -1,0 +1,210 @@
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================
+// MODELOS CENTRALIZADOS (App Principal)
+// =============================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  phone         String?
+  
+  // Campos para autenticación
+  password      String?  // Null si solo usa OAuth
+  emailVerified DateTime?
+  isActive      Boolean  @default(true)
+  
+  // OAuth providers
+  googleId      String?  @unique
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relación muchos a muchos con tenants
+  userTenants UserTenant[]
+  
+  // Sesiones para autenticación
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  tenantId     String?  // Sesión específica para un tenant
+  token        String   @unique
+  refreshToken String?  @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Tenant {
+  id          String   @id @default(cuid())
+  slug        String   @unique // Para identificar en URLs y headers
+  name        String
+  description String?
+  
+  // Información del negocio
+  businessType String? // clinic, salon, consultancy, etc.
+  address     String?
+  phone       String?
+  website     String?
+  logo        String?
+  
+  // Configuración
+  timezone    String   @default("America/Santiago")
+  currency    String   @default("CLP")
+  isActive    Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Configuración específica del tenant
+  settings TenantSettings?
+
+  // Relaciones con usuarios
+  userTenants UserTenant[]
+
+  @@map("tenants")
+}
+
+model UserTenant {
+  id       String @id @default(cuid())
+  userId   String
+  tenantId String
+  
+  // Rol dentro del tenant
+  role     String @default("client") // client, provider, admin, owner
+  
+  // Estado de la relación
+  status   String @default("active") // active, suspended, pending_approval
+  joinedAt DateTime @default(now())
+  
+  // Metadatos específicos del tenant
+  metadata Json? // Para datos adicionales específicos por tenant
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@map("user_tenants")
+}
+
+model TenantSettings {
+  id       String @id @default(cuid())
+  tenantId String @unique
+
+  // Configuraciones de negocio
+  allowSelfBooking     Boolean @default(true)
+  requireApproval      Boolean @default(false)
+  advanceBookingDays   Int     @default(30)
+  cancellationHours    Int     @default(24)
+  
+  // Configuraciones de horarios
+  workingHours         Json?   // Horarios de trabajo por día
+  holidays             String[] // Fechas de días no laborales
+  
+  // Configuraciones de notificación
+  emailNotifications   Boolean @default(true)
+  smsNotifications     Boolean @default(false)
+  reminderHours        Int     @default(24)
+  
+  // Configuraciones de registro
+  allowGoogleSignIn    Boolean @default(true)
+  allowEmailSignUp     Boolean @default(true)
+  requirePhoneVerification Boolean @default(false)
+  
+  // Branding básico
+  primaryColor         String  @default("#007bff")
+  secondaryColor       String  @default("#6c757d")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}
+
+// =======================================
+// MODELOS BASE PARA FUTURAS EXPANSIONES
+// =======================================
+
+// Estas tablas están listas para cuando necesites implementar
+// el sistema de reservas completo
+
+model Service {
+  id          String @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  duration    Int    // Duración en minutos
+  price       Decimal? @db.Decimal(10, 2)
+  isActive    Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("services")
+}
+
+model Provider {
+  id       String @id @default(cuid())
+  tenantId String
+  userId   String // Referencia al User que es provider
+  
+  // Información profesional
+  title       String? // Dr., Lic., etc.
+  specialties String[]
+  bio         String?
+  
+  // Configuración de agenda
+  isActive Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@map("providers")
+}
+
+// Para futuras reservas
+model Appointment {
+  id         String   @id @default(cuid())
+  tenantId   String
+  clientId   String   // userId del cliente
+  providerId String?  // userId del proveedor
+  serviceId  String?
+  
+  // Detalles de la cita
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  status      String @default("scheduled") // scheduled, confirmed, cancelled, completed
+  
+  // Metadatos
+  notes      String?
+  metadata   Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("appointments")
+}
