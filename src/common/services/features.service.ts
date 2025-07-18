@@ -4,7 +4,7 @@ import { PrismaService } from './prisma.service';
 export interface FeatureAccess {
   hasAccess: boolean;
   isUnlimited: boolean;
-  limit?: number;
+  limit?: number | null;
   currentUsage?: number;
   remainingUsage?: number;
 }
@@ -15,7 +15,7 @@ export interface SystemFeature {
   description: string;
   category: string;
   isCore: boolean;
-  defaultLimit?: number;
+  defaultLimit?: number | null;
   defaultIsUnlimited: boolean;
 }
 
@@ -407,11 +407,11 @@ export class FeaturesService {
     const features: Array<{
       key: string;
       name: string;
-      description: string;
-      category: string;
+      description: string | null;
+      category: string | null;
       hasAccess: boolean;
       isUnlimited: boolean;
-      limit?: number;
+      limit?: number | null;
       currentUsage: number;
     }> = [];
 

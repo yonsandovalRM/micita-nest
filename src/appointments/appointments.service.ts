@@ -1,4 +1,3 @@
-// src/appointments/appointments.service.ts
 import {
   Injectable,
   NotFoundException,

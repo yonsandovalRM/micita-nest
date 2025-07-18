@@ -98,7 +98,7 @@ export class SubscriptionsService {
     const amount =
       billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
 
-    if (!amount || amount <= 0) {
+    if (!amount || Number(amount) <= 0) {
       throw new BadRequestException(
         `El plan ${plan.name} no tiene precio configurado para facturación ${billingCycle}`,
       );
@@ -163,7 +163,7 @@ export class SubscriptionsService {
         currency: subscription.currency,
         billingCycle: subscription.billingCycle,
         startDate: subscription.startDate,
-        endDate: subscription.endDate,
+        endDate: subscription.endDate ?? undefined,
         nextBillingDate: subscription.nextBillingDate,
         autoRenew: subscription.autoRenew,
         mercadoPago: {
