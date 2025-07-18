@@ -592,7 +592,7 @@ export class AppointmentsService {
     tenantId: string,
     startTime: Date,
     endTime: Date,
-    providerId?: string,
+    providerId?: string | null, // Cambiar el tipo para aceptar null
     excludeAppointmentId?: string,
   ) {
     const whereClause: any = {

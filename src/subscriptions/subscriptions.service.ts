@@ -51,8 +51,8 @@ export interface SubscriptionResponse {
   currency: string;
   billingCycle: string;
   startDate: Date;
-  endDate?: Date;
-  nextBillingDate?: Date;
+  endDate?: Date | null; // Permitir null
+  nextBillingDate?: Date | null; // Permitir null
   autoRenew: boolean;
   mercadoPago?: {
     preapprovalId: string;
@@ -107,7 +107,6 @@ export class SubscriptionsService {
     // Cancelar suscripciones activas existentes
     await this.cancelExistingActiveSubscriptions(tenantId);
 
-    // Calcular fechas
     const startDate = new Date();
     const endDate = this.calculateEndDate(startDate, billingCycle);
     const nextBillingDate = new Date(endDate);
@@ -163,7 +162,7 @@ export class SubscriptionsService {
         currency: subscription.currency,
         billingCycle: subscription.billingCycle,
         startDate: subscription.startDate,
-        endDate: subscription.endDate ?? undefined,
+        endDate: subscription.endDate,
         nextBillingDate: subscription.nextBillingDate,
         autoRenew: subscription.autoRenew,
         mercadoPago: {
@@ -444,7 +443,7 @@ export class SubscriptionsService {
   }
 
   private async handlePreApprovalUpdate(preapprovalId: string) {
-    const subscription = await this.prisma.subscription.findUnique({
+    const subscription = await this.prisma.subscription.findFirst({
       where: { mercadoPagoPreapprovalId: preapprovalId },
     });
 
@@ -459,11 +458,11 @@ export class SubscriptionsService {
     const mockStatus = 'authorized'; // En producción obtener de la API
 
     let newStatus = subscription.status;
-    /*  switch (mockStatus) {
+    switch (mockStatus) {
       case 'authorized':
         newStatus = 'active';
         break;
-      case 'paused':
+      /* case 'paused':
         newStatus = 'suspended';
         break;
       case 'cancelled':
@@ -471,8 +470,8 @@ export class SubscriptionsService {
         break;
       case 'pending':
         newStatus = 'pending';
-        break;
-    } */
+        break; */
+    }
 
     await this.prisma.subscription.update({
       where: { id: subscription.id },
@@ -501,7 +500,7 @@ export class SubscriptionsService {
     };
 
     // Buscar suscripción
-    let subscription = null;
+    let subscription: any = null; // Declarar explícitamente el tipo
     if (mockPayment.external_reference) {
       const tenantId = mockPayment.external_reference.split('-')[0];
       subscription = await this.prisma.subscription.findFirst({
@@ -519,7 +518,7 @@ export class SubscriptionsService {
     }
 
     // Crear/actualizar registro de pago
-    /*  await this.prisma.payment.upsert({
+    await this.prisma.payment.upsert({
       where: { mercadoPagoPaymentId: paymentId },
       update: {
         status: this.mapPaymentStatus(mockPayment.status),
@@ -538,15 +537,15 @@ export class SubscriptionsService {
         paidAt: mockPayment.status === 'approved' ? new Date() : null,
       },
     });
- */
+
     // Si fue aprobado, extender suscripción
-    /*  if (mockPayment.status === 'approved') {
+    if (mockPayment.status === 'approved') {
       await this.extendSubscription(subscription.id);
     }
- */
-    /* this.logger.log(
+
+    this.logger.log(
       `Pago procesado: ${paymentId} para suscripción: ${subscription.id}`,
-    ); */
+    );
   }
 
   private mapPaymentStatus(mercadoPagoStatus: string): string {

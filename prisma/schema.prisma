@@ -337,7 +337,7 @@ model Subscription {
 
   // Integración con MercadoPago
   mercadoPagoSubscriptionId String? @unique // ID de la suscripción en MercadoPago
-  mercadoPagoPreapprovalId  String? // ID de preapproval en MercadoPago
+  mercadoPagoPreapprovalId  String? @unique // Agregar índice único aquí
   mercadoPagoPayerId        String? // ID del pagador en MercadoPago
 
   // Configuración de renovación
@@ -369,7 +369,7 @@ model Payment {
   status   String // "pending", "approved", "rejected", "cancelled", "refunded"
 
   // Información de MercadoPago
-  mercadoPagoPaymentId String? @unique // ID del pago en MercadoPago
+  mercadoPagoPaymentId String? @unique // Asegurar que este índice único existe
   mercadoPagoStatus    String? // Estado del pago en MercadoPago
   paymentMethodId      String? // Método de pago usado
 

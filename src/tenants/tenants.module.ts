@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
-import { PrismaService } from '../common/services/prisma.service';
+import { CommonModule } from '../common/common.module';
 
 @Module({
+  imports: [CommonModule],
   controllers: [TenantsController],
-  providers: [TenantsService, PrismaService],
+  providers: [TenantsService],
   exports: [TenantsService],
 })
 export class TenantsModule {}
