@@ -1,98 +1,178 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Configuración de Base de Datos PostgreSQL con Docker
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Estructura de archivos
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+proyecto/
+├── docker-compose.yml
+├── .env
+├── init-scripts/
+│   └── 01-init.sql
+├── postgres-data/        # Creado automáticamente
+├── pgadmin-data/         # Creado automáticamente
+└── DATABASE_SETUP.md
 ```
 
-## Compile and run the project
+## Configuración inicial
+
+1. **Copia los archivos** en la raíz de tu proyecto
+2. **Configura las variables de entorno** en el archivo `.env`
+3. **Cambia las contraseñas** por valores seguros en producción
+
+## Comandos básicos
+
+### Iniciar la base de datos
 
 ```bash
-# development
-$ npm run start
+# Solo PostgreSQL
+docker-compose up -d postgres
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# PostgreSQL + pgAdmin
+docker-compose --profile admin up -d
 ```
 
-## Run tests
+### Detener los servicios
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker-compose down
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Ver logs
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Logs de PostgreSQL
+docker-compose logs -f postgres
+
+# Logs de pgAdmin
+docker-compose logs -f pgadmin
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Reiniciar servicios
 
-## Resources
+```bash
+docker-compose restart postgres
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## Configuración de Prisma
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+1. **Instalar Prisma CLI** (si no lo tienes):
 
-## Support
+```bash
+npm install -g prisma
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+2. **Ejecutar migraciones**:
 
-## Stay in touch
+```bash
+# Generar migración inicial
+npx prisma migrate dev --name init
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# Aplicar migraciones
+npx prisma migrate deploy
 
-## License
+# Generar el cliente de Prisma
+npx prisma generate
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+3. **Poblar datos iniciales** (opcional):
+
+```bash
+npx prisma db seed
+```
+
+## Acceso a la base de datos
+
+### Desde tu aplicación NestJS
+
+- **URL**: `postgresql://postgres:your_password@localhost:5432/booking_system`
+- **Host**: `localhost`
+- **Puerto**: `5432`
+- **Database**: `booking_system`
+- **Usuario**: `postgres`
+
+### Desde pgAdmin (opcional)
+
+- **URL**: http://localhost:5050
+- **Email**: admin@booking.local
+- **Password**: admin123
+
+Para conectar a PostgreSQL desde pgAdmin:
+
+- **Host**: `postgres` (nombre del servicio en Docker)
+- **Puerto**: `5432`
+- **Database**: `booking_system`
+- **Usuario**: `postgres`
+
+## Persistencia de datos
+
+Los datos se guardan en:
+
+- **PostgreSQL**: `./postgres-data/`
+- **pgAdmin**: `./pgadmin-data/`
+
+Estos folders se crean automáticamente y **NO** deben agregarse al control de versiones.
+
+## Backup y restore
+
+### Crear backup
+
+```bash
+docker exec booking-postgres pg_dump -U postgres -d booking_system > backup.sql
+```
+
+### Restaurar backup
+
+```bash
+docker exec -i booking-postgres psql -U postgres -d booking_system < backup.sql
+```
+
+## Limpieza completa
+
+⚠️ **ATENCIÓN**: Esto eliminará TODOS los datos
+
+```bash
+# Detener servicios
+docker-compose down
+
+# Eliminar volúmenes y datos
+docker-compose down -v
+rm -rf postgres-data pgadmin-data
+
+# Opcional: eliminar imágenes
+docker rmi postgres:15-alpine dpage/pgadmin4:latest
+```
+
+## Variables de entorno importantes
+
+| Variable            | Descripción                | Valor por defecto        |
+| ------------------- | -------------------------- | ------------------------ |
+| `POSTGRES_DB`       | Nombre de la base de datos | `booking_system`         |
+| `POSTGRES_USER`     | Usuario de PostgreSQL      | `postgres`               |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL   | `password`               |
+| `POSTGRES_PORT`     | Puerto expuesto            | `5432`                   |
+| `DATABASE_URL`      | URL completa para Prisma   | Generada automáticamente |
+
+## Troubleshooting
+
+### Puerto ya en uso
+
+```bash
+# Cambiar el puerto en .env
+POSTGRES_PORT=5433
+```
+
+### Problemas de permisos
+
+```bash
+# En Linux/Mac, ajustar permisos
+sudo chown -R $USER:$USER postgres-data pgadmin-data
+```
+
+### Resetear contraseña de PostgreSQL
+
+```bash
+# Detener, eliminar contenedor y reiniciar
+docker-compose down
+docker rm booking-postgres
+docker-compose up -d postgres
+```
