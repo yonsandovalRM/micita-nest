@@ -1,11 +1,16 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../src/common/services/prisma.service';
 import { RolesPermissionsService } from '../src/common/services/roles-permissions.service';
 
 async function initializeRoles() {
   const prisma = new PrismaClient();
 
-  // Crear una instancia temporal del servicio
-  const rolesService = new RolesPermissionsService(prisma);
+  // Crear instancia de PrismaService que extiende PrismaClient
+  const prismaService = new PrismaService();
+  await prismaService.onModuleInit();
+
+  // Crear una instancia del servicio con PrismaService
+  const rolesService = new RolesPermissionsService(prismaService);
 
   try {
     // Obtener todos los tenants activos
@@ -33,6 +38,7 @@ async function initializeRoles() {
     console.error('Error durante la migración:', error);
   } finally {
     await prisma.$disconnect();
+    await prismaService.onModuleDestroy();
   }
 }
 

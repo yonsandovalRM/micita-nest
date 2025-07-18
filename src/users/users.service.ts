@@ -25,6 +25,15 @@ export class UsersService {
             createdAt: true,
           },
         },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            description: true,
+            priority: true,
+          },
+        },
         tenant: {
           select: {
             id: true,
@@ -64,6 +73,14 @@ export class UsersService {
             lastName: true,
             avatar: true,
             createdAt: true,
+          },
+        },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            priority: true,
           },
         },
       },
