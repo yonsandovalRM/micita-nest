@@ -32,6 +32,7 @@ export interface CreateSubscriptionRequest {
   planId: string;
   billingCycle: 'monthly' | 'yearly';
   payerEmail: string;
+  startTrial?: boolean;
   backUrls?: {
     success?: string;
     failure?: string;
@@ -46,14 +47,21 @@ export interface SubscriptionResponse {
     id: string;
     name: string;
     description: string;
+    allowTrial: boolean;
+    trialDays: number;
   };
   amount: number;
   currency: string;
   billingCycle: string;
   startDate: Date;
-  endDate?: Date | null; // Permitir null
-  nextBillingDate?: Date | null; // Permitir null
+  endDate?: Date | null;
+  nextBillingDate?: Date | null;
   autoRenew: boolean;
+  // Trial info
+  isTrial: boolean;
+  trialStartDate?: Date | null;
+  trialEndDate?: Date | null;
+  trialDaysRemaining?: number;
   mercadoPago?: {
     preapprovalId: string;
     initPoint: string;
@@ -74,7 +82,13 @@ export class SubscriptionsService {
     tenantId: string,
     request: CreateSubscriptionRequest,
   ): Promise<SubscriptionResponse> {
-    const { planId, billingCycle, payerEmail, backUrls } = request;
+    const {
+      planId,
+      billingCycle,
+      payerEmail,
+      startTrial = false,
+      backUrls,
+    } = request;
 
     // Validar tenant
     const tenant = await this.prisma.tenant.findUnique({
@@ -94,52 +108,75 @@ export class SubscriptionsService {
       throw new NotFoundException('Plan no encontrado');
     }
 
+    // Cancelar suscripciones activas existentes
+    await this.cancelExistingActiveSubscriptions(tenantId);
+
+    const startDate = new Date();
+    let endDate: Date;
+    let nextBillingDate: Date | null = null;
+    let isTrial = false;
+    let trialStartDate: Date | null = null;
+    let trialEndDate: Date | null = null;
+    let status = 'pending';
+
+    // Verificar si debe iniciar trial
+    if (startTrial && plan.allowTrial && plan.trialDays > 0) {
+      isTrial = true;
+      trialStartDate = startDate;
+      trialEndDate = new Date(startDate);
+      trialEndDate.setDate(trialEndDate.getDate() + plan.trialDays);
+      endDate = trialEndDate;
+      status = 'trial';
+    } else {
+      endDate = this.calculateEndDate(startDate, billingCycle);
+      nextBillingDate = new Date(endDate);
+    }
+
     // Obtener precio según ciclo de facturación
     const amount =
       billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
 
-    if (!amount || Number(amount) <= 0) {
+    if (!isTrial && (!amount || Number(amount) <= 0)) {
       throw new BadRequestException(
         `El plan ${plan.name} no tiene precio configurado para facturación ${billingCycle}`,
       );
     }
 
-    // Cancelar suscripciones activas existentes
-    await this.cancelExistingActiveSubscriptions(tenantId);
-
-    const startDate = new Date();
-    const endDate = this.calculateEndDate(startDate, billingCycle);
-    const nextBillingDate = new Date(endDate);
-
     try {
-      // Crear preapproval en MercadoPago
-      const mercadoPagoResponse = await this.createMercadoPagoPreApproval({
-        planName: plan.name,
-        tenantName: tenant.name,
-        amount: Number(amount),
-        billingCycle,
-        payerEmail,
-        startDate,
-        endDate,
-        backUrls,
-        externalReference: `${tenantId}-${Date.now()}`,
-      });
+      let mercadoPagoResponse: MercadoPagoPreApproval | null = null;
+
+      // Solo crear preapproval en MercadoPago si no es trial
+      if (!isTrial) {
+        mercadoPagoResponse = await this.createMercadoPagoPreApproval({
+          planName: plan.name,
+          tenantName: tenant.name,
+          amount: Number(amount),
+          billingCycle,
+          payerEmail,
+          startDate,
+          endDate,
+          backUrls,
+          externalReference: `${tenantId}-${Date.now()}`,
+        });
+      }
 
       // Crear suscripción en base de datos
       const subscription = await this.prisma.subscription.create({
         data: {
           tenantId,
           planId,
-          status: 'pending',
+          status,
           billingCycle,
           startDate,
           endDate,
           nextBillingDate,
-          amount,
+          amount: Number(amount || 0),
           currency: 'CLP',
-          mercadoPagoSubscriptionId: mercadoPagoResponse.id,
-          mercadoPagoPreapprovalId: mercadoPagoResponse.id,
-          autoRenew: true,
+          isTrial,
+          trialEndDate,
+          mercadoPagoSubscriptionId: mercadoPagoResponse?.id,
+          mercadoPagoPreapprovalId: mercadoPagoResponse?.id,
+          autoRenew: !isTrial, // No auto-renovar trials
         },
         include: {
           plan: true,
@@ -147,8 +184,19 @@ export class SubscriptionsService {
       });
 
       this.logger.log(
-        `Suscripción creada: ${subscription.id} para tenant: ${tenantId}`,
+        `Suscripción ${isTrial ? 'trial' : 'de pago'} creada: ${subscription.id} para tenant: ${tenantId}`,
       );
+
+      const trialDaysRemaining =
+        isTrial && trialEndDate
+          ? Math.max(
+              0,
+              Math.ceil(
+                (trialEndDate.getTime() - new Date().getTime()) /
+                  (1000 * 60 * 60 * 24),
+              ),
+            )
+          : undefined;
 
       return {
         id: subscription.id,
@@ -157,6 +205,8 @@ export class SubscriptionsService {
           id: subscription.plan.id,
           name: subscription.plan.name,
           description: subscription.plan.description || '',
+          allowTrial: subscription.plan.allowTrial,
+          trialDays: subscription.plan.trialDays,
         },
         amount: Number(subscription.amount),
         currency: subscription.currency,
@@ -165,16 +215,70 @@ export class SubscriptionsService {
         endDate: subscription.endDate,
         nextBillingDate: subscription.nextBillingDate,
         autoRenew: subscription.autoRenew,
-        mercadoPago: {
-          preapprovalId: mercadoPagoResponse.id,
-          initPoint: mercadoPagoResponse.init_point,
-          sandboxInitPoint: mercadoPagoResponse.sandbox_init_point,
-        },
+        isTrial: subscription.isTrial,
+        trialEndDate: subscription.trialEndDate,
+        trialDaysRemaining,
+        mercadoPago: mercadoPagoResponse
+          ? {
+              preapprovalId: mercadoPagoResponse.id,
+              initPoint: mercadoPagoResponse.init_point,
+              sandboxInitPoint: mercadoPagoResponse.sandbox_init_point,
+            }
+          : undefined,
       };
     } catch (error) {
       this.logger.error('Error creando suscripción:', error);
       throw new BadRequestException('Error al procesar la suscripción');
     }
+  }
+
+  private async createMercadoPagoPreApproval({
+    planName,
+    tenantName,
+    amount,
+    billingCycle,
+    payerEmail,
+    startDate,
+    endDate,
+    backUrls,
+    externalReference,
+  }: {
+    planName: string;
+    tenantName: string;
+    amount: number;
+    billingCycle: 'monthly' | 'yearly';
+    payerEmail: string;
+    startDate: Date;
+    endDate: Date;
+    backUrls?: {
+      success?: string;
+      failure?: string;
+      pending?: string;
+    };
+    externalReference: string;
+  }): Promise<MercadoPagoPreApproval> {
+    // Aquí se implementaría la lógica para crear el preapproval en MercadoPago
+    // Simulación de respuesta
+    return {
+      id: `preapproval-${Date.now()}`,
+      status: 'authorized',
+      init_point: 'https://www.mercadopago.com/checkout/preapproval/init',
+      sandbox_init_point:
+        'https://sandbox.mercadopago.com/checkout/preapproval/init',
+      payer_id: 'payer-12345',
+    };
+  }
+
+  async createTrialSubscription(
+    tenantId: string,
+    planId: string,
+  ): Promise<SubscriptionResponse> {
+    return this.createSubscription(tenantId, {
+      planId,
+      billingCycle: 'monthly',
+      payerEmail: '', // No necesario para trial
+      startTrial: true,
+    });
   }
 
   async getTenantSubscription(
@@ -183,7 +287,7 @@ export class SubscriptionsService {
     const subscription = await this.prisma.subscription.findFirst({
       where: {
         tenantId,
-        status: { in: ['active', 'pending', 'suspended'] },
+        status: { in: ['active', 'pending', 'suspended', 'trial'] },
       },
       include: {
         plan: true,
@@ -197,6 +301,17 @@ export class SubscriptionsService {
       return null;
     }
 
+    const trialDaysRemaining =
+      subscription.isTrial && subscription.trialEndDate
+        ? Math.max(
+            0,
+            Math.ceil(
+              (subscription.trialEndDate.getTime() - new Date().getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          )
+        : undefined;
+
     return {
       id: subscription.id,
       status: subscription.status,
@@ -204,6 +319,8 @@ export class SubscriptionsService {
         id: subscription.plan.id,
         name: subscription.plan.name,
         description: subscription.plan.description || '',
+        allowTrial: subscription.plan.allowTrial,
+        trialDays: subscription.plan.trialDays,
       },
       amount: Number(subscription.amount),
       currency: subscription.currency,
@@ -212,7 +329,76 @@ export class SubscriptionsService {
       endDate: subscription.endDate,
       nextBillingDate: subscription.nextBillingDate,
       autoRenew: subscription.autoRenew,
+      isTrial: subscription.isTrial,
+      trialEndDate: subscription.trialEndDate,
+      trialDaysRemaining,
     };
+  }
+
+  async checkTrialExpiry() {
+    const expiredTrials = await this.prisma.subscription.findMany({
+      where: {
+        isTrial: true,
+        status: 'trial',
+        trialEndDate: {
+          lt: new Date(),
+        },
+      },
+    });
+
+    for (const subscription of expiredTrials) {
+      await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: 'expired',
+          autoRenew: false,
+        },
+      });
+
+      this.logger.log(`Trial expirado: ${subscription.id}`);
+    }
+
+    return { expiredTrialsCount: expiredTrials.length };
+  }
+
+  async convertTrialToPatrSubscription(
+    tenantId: string,
+    subscriptionId: string,
+    billingCycle: 'monthly' | 'yearly',
+    payerEmail: string,
+    backUrls?: any,
+  ): Promise<SubscriptionResponse> {
+    const trialSubscription = await this.prisma.subscription.findFirst({
+      where: {
+        id: subscriptionId,
+        tenantId,
+        isTrial: true,
+        status: { in: ['trial', 'expired'] },
+      },
+      include: { plan: true },
+    });
+
+    if (!trialSubscription) {
+      throw new NotFoundException('Suscripción trial no encontrada');
+    }
+
+    // Cancelar trial actual
+    await this.prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+      },
+    });
+
+    // Crear nueva suscripción de pago
+    return this.createSubscription(tenantId, {
+      planId: trialSubscription.planId,
+      billingCycle,
+      payerEmail,
+      startTrial: false,
+      backUrls,
+    });
   }
 
   async cancelSubscription(
@@ -224,7 +410,7 @@ export class SubscriptionsService {
       where: {
         id: subscriptionId,
         tenantId,
-        status: { in: ['active', 'pending'] },
+        status: { in: ['active', 'pending', 'trial'] },
       },
     });
 
@@ -235,8 +421,8 @@ export class SubscriptionsService {
     }
 
     try {
-      // Cancelar en MercadoPago si existe preapproval
-      if (subscription.mercadoPagoPreapprovalId) {
+      // Cancelar en MercadoPago si existe preapproval y no es trial
+      if (subscription.mercadoPagoPreapprovalId && !subscription.isTrial) {
         await this.cancelMercadoPagoPreApproval(
           subscription.mercadoPagoPreapprovalId,
         );
@@ -253,8 +439,9 @@ export class SubscriptionsService {
         },
       });
 
+      const subscriptionType = subscription.isTrial ? 'trial' : 'de pago';
       this.logger.log(
-        `Suscripción cancelada: ${subscriptionId} para tenant: ${tenantId}`,
+        `Suscripción ${subscriptionType} cancelada: ${subscriptionId} para tenant: ${tenantId}`,
       );
 
       return { message: 'Suscripción cancelada exitosamente' };
@@ -308,9 +495,14 @@ export class SubscriptionsService {
   }
 
   async checkSubscriptionExpiry() {
+    // Verificar trials expirados
+    const trialResult = await this.checkTrialExpiry();
+
+    // Verificar suscripciones regulares expiradas
     const expiredSubscriptions = await this.prisma.subscription.findMany({
       where: {
         status: 'active',
+        isTrial: false,
         endDate: {
           lt: new Date(),
         },
@@ -326,7 +518,10 @@ export class SubscriptionsService {
       this.logger.log(`Suscripción expirada: ${subscription.id}`);
     }
 
-    return { expiredCount: expiredSubscriptions.length };
+    return {
+      expiredCount: expiredSubscriptions.length,
+      expiredTrialsCount: trialResult.expiredTrialsCount,
+    };
   }
 
   // Métodos privados
@@ -335,13 +530,13 @@ export class SubscriptionsService {
     const activeSubscriptions = await this.prisma.subscription.findMany({
       where: {
         tenantId,
-        status: { in: ['active', 'pending'] },
+        status: { in: ['active', 'pending', 'trial'] },
       },
     });
 
     for (const subscription of activeSubscriptions) {
       try {
-        if (subscription.mercadoPagoPreapprovalId) {
+        if (subscription.mercadoPagoPreapprovalId && !subscription.isTrial) {
           await this.cancelMercadoPagoPreApproval(
             subscription.mercadoPagoPreapprovalId,
           );
@@ -376,70 +571,8 @@ export class SubscriptionsService {
     return endDate;
   }
 
-  private async createMercadoPagoPreApproval(params: {
-    planName: string;
-    tenantName: string;
-    amount: number;
-    billingCycle: string;
-    payerEmail: string;
-    startDate: Date;
-    endDate: Date;
-    backUrls?: any;
-    externalReference: string;
-  }): Promise<MercadoPagoPreApproval> {
-    // Simulación de la API de MercadoPago
-    // En producción, usar la SDK real de MercadoPago
-
-    const mockResponse: MercadoPagoPreApproval = {
-      id: `MP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      status: 'pending',
-      init_point: `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=mock-${Date.now()}`,
-      sandbox_init_point: `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=mock-${Date.now()}`,
-    };
-
-    // Aquí iría la integración real con MercadoPago:
-    /*
-    const mercadoPago = new MercadoPagoConfig({
-      accessToken: this.configService.get('MERCADOPAGO_ACCESS_TOKEN'),
-    });
-
-    const preApproval = new PreApproval(mercadoPago);
-    
-    const response = await preApproval.create({
-      body: {
-        reason: `${params.planName} - ${params.tenantName}`,
-        auto_recurring: {
-          frequency: params.billingCycle === 'monthly' ? 1 : 12,
-          frequency_type: 'months',
-          transaction_amount: params.amount,
-          currency_id: 'CLP',
-          start_date: params.startDate.toISOString(),
-          end_date: params.endDate.toISOString(),
-        },
-        payer_email: params.payerEmail,
-        back_url: params.backUrls?.success || `${process.env.FRONTEND_URL}/subscription/success`,
-        external_reference: params.externalReference,
-      },
-    });
-
-    return response;
-    */
-
-    return mockResponse;
-  }
-
   private async cancelMercadoPagoPreApproval(preapprovalId: string) {
-    // Simulación - en producción usar SDK real
     this.logger.log(`Cancelando preapproval en MercadoPago: ${preapprovalId}`);
-
-    // Aquí iría la cancelación real:
-    /*
-    const preApproval = new PreApproval(this.mercadoPago);
-    await preApproval.update({
-      id: preapprovalId,
-      body: { status: 'cancelled' },
-    });
-    */
   }
 
   private async handlePreApprovalUpdate(preapprovalId: string) {
@@ -454,15 +587,14 @@ export class SubscriptionsService {
       return;
     }
 
-    // Simular obtención de estado de MercadoPago
-    const mockStatus = 'authorized'; // En producción obtener de la API
-
+    const mockStatus = 'authorized';
     let newStatus = subscription.status;
+
     switch (mockStatus) {
       case 'authorized':
         newStatus = 'active';
         break;
-      /* case 'paused':
+      /*  case 'paused':
         newStatus = 'suspended';
         break;
       case 'cancelled':
@@ -500,7 +632,7 @@ export class SubscriptionsService {
     };
 
     // Buscar suscripción
-    let subscription: any = null; // Declarar explícitamente el tipo
+    let subscription: any = null;
     if (mockPayment.external_reference) {
       const tenantId = mockPayment.external_reference.split('-')[0];
       subscription = await this.prisma.subscription.findFirst({

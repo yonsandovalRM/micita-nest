@@ -33,6 +33,7 @@ import {
   IsOptional,
   IsObject,
   ValidateNested,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -55,6 +56,29 @@ class CreateSubscriptionDto {
   @IsNotEmpty()
   planId: string;
 
+  @IsEnum(['monthly', 'yearly'])
+  billingCycle: 'monthly' | 'yearly';
+
+  @IsEmail()
+  payerEmail: string;
+
+  @IsOptional()
+  @IsBoolean()
+  startTrial?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BackUrlsDto)
+  backUrls?: BackUrlsDto;
+}
+
+class CreateTrialDto {
+  @IsString()
+  @IsNotEmpty()
+  planId: string;
+}
+
+class ConvertTrialDto {
   @IsEnum(['monthly', 'yearly'])
   billingCycle: 'monthly' | 'yearly';
 
@@ -136,6 +160,7 @@ export class SubscriptionsController {
         planId: createSubscriptionDto.planId,
         billingCycle: createSubscriptionDto.billingCycle,
         payerEmail: createSubscriptionDto.payerEmail,
+        startTrial: createSubscriptionDto.startTrial || false,
         backUrls: createSubscriptionDto.backUrls,
       };
 
@@ -147,10 +172,82 @@ export class SubscriptionsController {
       return {
         success: true,
         data: subscription,
-        message: 'Suscripción creada exitosamente',
+        message: subscription.isTrial
+          ? 'Período de prueba iniciado exitosamente'
+          : 'Suscripción creada exitosamente',
       };
     } catch (error) {
       this.logger.error('Error creando suscripción:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear una suscripción trial específica
+   */
+  @Post('trial')
+  @UseGuards(TenantGuard, AuthGuard, TenantAccessGuard, PermissionsGuard)
+  @RequirePermissions('settings.update')
+  @HttpCode(HttpStatus.CREATED)
+  async createTrialSubscription(
+    @CurrentTenant() tenant: any,
+    @Body() createTrialDto: CreateTrialDto,
+  ) {
+    try {
+      this.logger.log(
+        `Creando suscripción trial para tenant: ${tenant.id}, plan: ${createTrialDto.planId}`,
+      );
+
+      const subscription =
+        await this.subscriptionsService.createTrialSubscription(
+          tenant.id,
+          createTrialDto.planId,
+        );
+
+      return {
+        success: true,
+        data: subscription,
+        message: 'Período de prueba iniciado exitosamente',
+      };
+    } catch (error) {
+      this.logger.error('Error creando suscripción trial:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Convertir trial a suscripción de pago
+   */
+  @Post(':subscriptionId/convert-trial')
+  @UseGuards(TenantGuard, AuthGuard, TenantAccessGuard, PermissionsGuard)
+  @RequirePermissions('settings.update')
+  @HttpCode(HttpStatus.OK)
+  async convertTrialToSubscription(
+    @CurrentTenant() tenant: any,
+    @Param('subscriptionId') subscriptionId: string,
+    @Body() convertTrialDto: ConvertTrialDto,
+  ) {
+    try {
+      this.logger.log(
+        `Convirtiendo trial a suscripción: ${subscriptionId} para tenant: ${tenant.id}`,
+      );
+
+      const subscription =
+        await this.subscriptionsService.convertTrialToPatrSubscription(
+          tenant.id,
+          subscriptionId,
+          convertTrialDto.billingCycle,
+          convertTrialDto.payerEmail,
+          convertTrialDto.backUrls,
+        );
+
+      return {
+        success: true,
+        data: subscription,
+        message: 'Trial convertido a suscripción de pago exitosamente',
+      };
+    } catch (error) {
+      this.logger.error('Error convirtiendo trial:', error);
       throw error;
     }
   }
@@ -295,7 +392,7 @@ export class SubscriptionsController {
       return {
         success: true,
         data: result,
-        message: `Verificación completada. ${result.expiredCount} suscripciones expiradas`,
+        message: `Verificación completada. ${result.expiredCount} suscripciones y ${result.expiredTrialsCount} trials expirados`,
       };
     } catch (error) {
       this.logger.error('Error verificando suscripciones expiradas:', error);
@@ -306,49 +403,24 @@ export class SubscriptionsController {
   }
 
   /**
-   * Obtener estadísticas de suscripciones (endpoint admin)
+   * Verificar solo trials expirados
    */
-  @Get('stats')
+  @Post('check-expired-trials')
   @UseGuards(AuthGuard, PermissionsGuard)
-  @RequirePermissions('settings.read')
-  @HttpCode(HttpStatus.OK)
-  async getSubscriptionStats(@Query('period') period?: string) {
-    try {
-      // Este método se puede implementar según las necesidades de estadísticas
-      return {
-        success: true,
-        data: {
-          message: 'Estadísticas no implementadas aún',
-          period: period || 'all',
-        },
-        message: 'Estadísticas obtenidas',
-      };
-    } catch (error) {
-      this.logger.error('Error obteniendo estadísticas:', error);
-      throw new BadRequestException('Error al obtener estadísticas');
-    }
-  }
-
-  /**
-   * Reactivar una suscripción cancelada (si es posible)
-   */
-  @Post(':subscriptionId/reactivate')
-  @UseGuards(TenantGuard, AuthGuard, TenantAccessGuard, PermissionsGuard)
   @RequirePermissions('settings.update')
   @HttpCode(HttpStatus.OK)
-  async reactivateSubscription(
-    @CurrentTenant() tenant: any,
-    @Param('subscriptionId') subscriptionId: string,
-  ) {
+  async checkExpiredTrials() {
     try {
-      // Este método se puede implementar para reactivar suscripciones
+      const result = await this.subscriptionsService.checkTrialExpiry();
+
       return {
-        success: false,
-        message: 'Reactivación de suscripciones no implementada aún',
+        success: true,
+        data: result,
+        message: `${result.expiredTrialsCount} trials expirados`,
       };
     } catch (error) {
-      this.logger.error('Error reactivando suscripción:', error);
-      throw new BadRequestException('Error al reactivar la suscripción');
+      this.logger.error('Error verificando trials expirados:', error);
+      throw new BadRequestException('Error al verificar trials expirados');
     }
   }
 
@@ -364,16 +436,21 @@ export class SubscriptionsController {
     @Param('subscriptionId') subscriptionId: string,
   ) {
     try {
-      // Este método se puede implementar para obtener detalles específicos
+      const subscription =
+        await this.subscriptionsService.getTenantSubscription(tenant.id);
+
+      if (!subscription || subscription.id !== subscriptionId) {
+        throw new BadRequestException('Suscripción no encontrada');
+      }
+
       return {
-        success: false,
-        message: 'Detalles de suscripción específica no implementados aún',
+        success: true,
+        data: subscription,
+        message: 'Detalles de suscripción obtenidos',
       };
     } catch (error) {
       this.logger.error('Error obteniendo detalles de suscripción:', error);
-      throw new BadRequestException(
-        'Error al obtener detalles de la suscripción',
-      );
+      throw error;
     }
   }
 }

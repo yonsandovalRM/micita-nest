@@ -38,6 +38,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-fastify": "^11.1.4",
+    "@nestjs/schedule": "^6.0.0",
     "@prisma/client": "^6.12.0",
     "@types/mercadopago": "^1.5.11",
     "bcrypt": "^6.0.0",

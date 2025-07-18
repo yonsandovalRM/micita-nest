@@ -242,6 +242,10 @@ model Plan {
   monthlyPrice Decimal? @db.Decimal(10, 2) // Precio mensual
   yearlyPrice  Decimal? @db.Decimal(10, 2) // Precio anual (con descuento)
 
+  // Trial configuration
+  allowTrial Boolean @default(false) @map("allow_trial")
+  trialDays  Int     @default(0) @map("trial_days") // Días de prueba gratuita
+
   // Configuración del plan
   isActive   Boolean @default(true)
   isPopular  Boolean @default(false) // Para destacar en UI
@@ -324,12 +328,14 @@ model Subscription {
   // Información de la suscripción
   status       String // "active", "pending", "cancelled", "expired", "suspended"
   billingCycle String // "monthly", "yearly"
+  isTrial      Boolean @default(false) // Si es un periodo de prueba
 
   // Fechas importantes
   startDate       DateTime
   endDate         DateTime?
   nextBillingDate DateTime?
   cancelledAt     DateTime?
+  trialEndDate    DateTime? // Si aplica
 
   // Precios (guardamos histórico)
   amount   Decimal @db.Decimal(10, 2)
