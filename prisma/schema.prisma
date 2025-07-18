@@ -28,6 +28,14 @@ model User {
   // OAuth providers
   googleId      String?  @unique
   
+  // Verificación de email
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  
+  // Reset de contraseña
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -80,6 +88,11 @@ model Tenant {
 
   // Relaciones con usuarios
   userTenants UserTenant[]
+  
+  // Sistema de roles y permisos
+  roles Role[]
+  permissions Permission[]
+  rolePermissions RolePermission[]
 
   @@map("tenants")
 }
@@ -89,8 +102,8 @@ model UserTenant {
   userId   String
   tenantId String
   
-  // Rol dentro del tenant
-  role     String @default("client") // client, provider, admin, owner
+  // Rol dentro del tenant (ahora referencia a tabla Role)
+  roleId   String?
   
   // Estado de la relación
   status   String @default("active") // active, suspended, pending_approval
@@ -101,6 +114,7 @@ model UserTenant {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role?  @relation(fields: [roleId], references: [id])
 
   @@unique([userId, tenantId])
   @@map("user_tenants")
@@ -129,6 +143,7 @@ model TenantSettings {
   allowGoogleSignIn    Boolean @default(true)
   allowEmailSignUp     Boolean @default(true)
   requirePhoneVerification Boolean @default(false)
+  requireEmailVerification Boolean @default(true)
   
   // Branding básico
   primaryColor         String  @default("#007bff")
@@ -142,12 +157,77 @@ model TenantSettings {
   @@map("tenant_settings")
 }
 
+// =============================================
+// SISTEMA DE ROLES Y PERMISOS
+// =============================================
+
+model Role {
+  id          String @id @default(cuid())
+  tenantId    String
+  name        String // "owner", "admin", "provider", "client", "receptionist"
+  displayName String // "Propietario", "Administrador", "Profesional", "Cliente"
+  description String?
+  
+  // Configuración del rol
+  isSystemRole Boolean @default(false) // Roles del sistema no se pueden eliminar
+  isActive     Boolean @default(true)
+  priority     Int     @default(0) // Para ordenar roles por jerarquía
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Relaciones
+  userTenants UserTenant[]
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  tenantId    String?  // null = permiso global del sistema
+  name        String   // "users.read", "appointments.create", "settings.update"
+  displayName String   // "Ver usuarios", "Crear citas", "Actualizar configuración"
+  description String?
+  category    String?  // "users", "appointments", "settings", "reports"
+  
+  // Configuración del permiso
+  isSystemPermission Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Relaciones
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  tenantId     String
+  roleId       String
+  permissionId String
+  
+  createdAt DateTime @default(now())
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
 // =======================================
 // MODELOS BASE PARA FUTURAS EXPANSIONES
 // =======================================
-
-// Estas tablas están listas para cuando necesites implementar
-// el sistema de reservas completo
 
 model Service {
   id          String @id @default(cuid())

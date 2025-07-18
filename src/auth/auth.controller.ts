@@ -9,11 +9,57 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { LoginEmailDto, LoginGoogleDto, RefreshTokenDto } from './dto/auth.dto';
+import {
+  LoginEmailDto,
+  LoginGoogleDto,
+  RefreshTokenDto,
+  RegisterEmailDto,
+  VerifyEmailDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
+
+  @Post('register/email')
+  @HttpCode(HttpStatus.CREATED)
+  async registerWithEmail(@Body() registerDto: RegisterEmailDto) {
+    return this.authService.registerWithEmail(
+      registerDto.email,
+      registerDto.password,
+      registerDto.tenantSlug,
+      registerDto.firstName,
+      registerDto.lastName,
+      registerDto.phone,
+    );
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() verifyDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyDto.token, verifyDto.tenantSlug);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(
+      forgotDto.email,
+      forgotDto.tenantSlug,
+    );
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetDto: ResetPasswordDto) {
+    return this.authService.resetPassword(
+      resetDto.token,
+      resetDto.password,
+      resetDto.tenantSlug,
+    );
+  }
 
   @Post('login/email')
   @HttpCode(HttpStatus.OK)

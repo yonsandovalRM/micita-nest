@@ -4,9 +4,12 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './common/services/prisma.service';
+import { EmailService } from './common/services/email.service';
+import { RolesPermissionsService } from './common/services/roles-permissions.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -21,8 +24,9 @@ import { TenantsModule } from './tenants/tenants.module';
     AuthModule,
     UsersModule,
     TenantsModule,
+    RolesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService, PrismaService, EmailService, RolesPermissionsService],
 })
 export class AppModule {}
