@@ -6,10 +6,12 @@ import { AppService } from './app.service';
 import { PrismaService } from './common/services/prisma.service';
 import { EmailService } from './common/services/email.service';
 import { RolesPermissionsService } from './common/services/roles-permissions.service';
+import { FeaturesService } from './common/services/features.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { RolesModule } from './roles/roles.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -25,8 +27,15 @@ import { RolesModule } from './roles/roles.module';
     UsersModule,
     TenantsModule,
     RolesModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService, EmailService, RolesPermissionsService],
+  providers: [
+    AppService,
+    PrismaService,
+    EmailService,
+    RolesPermissionsService,
+    FeaturesService,
+  ],
 })
 export class AppModule {}

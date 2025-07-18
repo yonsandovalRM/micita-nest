@@ -13,35 +13,35 @@ datasource db {
 // =============================================
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  firstName     String?
-  lastName      String?
-  avatar        String?
-  phone         String?
-  
+  id        String  @id @default(cuid())
+  email     String  @unique
+  firstName String?
+  lastName  String?
+  avatar    String?
+  phone     String?
+
   // Campos para autenticación
-  password      String?  // Null si solo usa OAuth
+  password      String? // Null si solo usa OAuth
   emailVerified DateTime?
-  isActive      Boolean  @default(true)
-  
+  isActive      Boolean   @default(true)
+
   // OAuth providers
-  googleId      String?  @unique
-  
+  googleId String? @unique
+
   // Verificación de email
-  emailVerificationToken String?
+  emailVerificationToken   String?
   emailVerificationExpires DateTime?
-  
+
   // Reset de contraseña
-  passwordResetToken String?
+  passwordResetToken   String?
   passwordResetExpires DateTime?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relación muchos a muchos con tenants
   userTenants UserTenant[]
-  
+
   // Sesiones para autenticación
   sessions Session[]
 
@@ -51,35 +51,35 @@ model User {
 model Session {
   id           String   @id @default(cuid())
   userId       String
-  tenantId     String?  // Sesión específica para un tenant
+  tenantId     String? // Sesión específica para un tenant
   token        String   @unique
   refreshToken String?  @unique
   expiresAt    DateTime
   createdAt    DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
 model Tenant {
-  id          String   @id @default(cuid())
-  slug        String   @unique // Para identificar en URLs y headers
+  id          String  @id @default(cuid())
+  slug        String  @unique // Para identificar en URLs y headers
   name        String
   description String?
-  
+
   // Información del negocio
   businessType String? // clinic, salon, consultancy, etc.
-  address     String?
-  phone       String?
-  website     String?
-  logo        String?
-  
+  address      String?
+  phone        String?
+  website      String?
+  logo         String?
+
   // Configuración
-  timezone    String   @default("America/Santiago")
-  currency    String   @default("CLP")
-  isActive    Boolean  @default(true)
-  
+  timezone String  @default("America/Santiago")
+  currency String  @default("CLP")
+  isActive Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -88,11 +88,14 @@ model Tenant {
 
   // Relaciones con usuarios
   userTenants UserTenant[]
-  
+
   // Sistema de roles y permisos
-  roles Role[]
-  permissions Permission[]
+  roles           Role[]
+  permissions     Permission[]
   rolePermissions RolePermission[]
+
+  // Relaciones con suscripciones
+  subscriptions Subscription[]
 
   @@map("tenants")
 }
@@ -101,14 +104,14 @@ model UserTenant {
   id       String @id @default(cuid())
   userId   String
   tenantId String
-  
+
   // Rol dentro del tenant (ahora referencia a tabla Role)
-  roleId   String?
-  
+  roleId String?
+
   // Estado de la relación
-  status   String @default("active") // active, suspended, pending_approval
+  status   String   @default("active") // active, suspended, pending_approval
   joinedAt DateTime @default(now())
-  
+
   // Metadatos específicos del tenant
   metadata Json? // Para datos adicionales específicos por tenant
 
@@ -125,30 +128,30 @@ model TenantSettings {
   tenantId String @unique
 
   // Configuraciones de negocio
-  allowSelfBooking     Boolean @default(true)
-  requireApproval      Boolean @default(false)
-  advanceBookingDays   Int     @default(30)
-  cancellationHours    Int     @default(24)
-  
+  allowSelfBooking   Boolean @default(true)
+  requireApproval    Boolean @default(false)
+  advanceBookingDays Int     @default(30)
+  cancellationHours  Int     @default(24)
+
   // Configuraciones de horarios
-  workingHours         Json?   // Horarios de trabajo por día
-  holidays             String[] // Fechas de días no laborales
-  
+  workingHours Json? // Horarios de trabajo por día
+  holidays     String[] // Fechas de días no laborales
+
   // Configuraciones de notificación
-  emailNotifications   Boolean @default(true)
-  smsNotifications     Boolean @default(false)
-  reminderHours        Int     @default(24)
-  
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  reminderHours      Int     @default(24)
+
   // Configuraciones de registro
-  allowGoogleSignIn    Boolean @default(true)
-  allowEmailSignUp     Boolean @default(true)
+  allowGoogleSignIn        Boolean @default(true)
+  allowEmailSignUp         Boolean @default(true)
   requirePhoneVerification Boolean @default(false)
   requireEmailVerification Boolean @default(true)
-  
+
   // Branding básico
-  primaryColor         String  @default("#007bff")
-  secondaryColor       String  @default("#6c757d")
-  
+  primaryColor   String @default("#007bff")
+  secondaryColor String @default("#6c757d")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -162,24 +165,24 @@ model TenantSettings {
 // =============================================
 
 model Role {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   tenantId    String
   name        String // "owner", "admin", "provider", "client", "receptionist"
   displayName String // "Propietario", "Administrador", "Profesional", "Cliente"
   description String?
-  
+
   // Configuración del rol
   isSystemRole Boolean @default(false) // Roles del sistema no se pueden eliminar
   isActive     Boolean @default(true)
   priority     Int     @default(0) // Para ordenar roles por jerarquía
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+
   // Relaciones
-  userTenants UserTenant[]
+  userTenants     UserTenant[]
   rolePermissions RolePermission[]
 
   @@unique([tenantId, name])
@@ -187,21 +190,21 @@ model Role {
 }
 
 model Permission {
-  id          String @id @default(cuid())
-  tenantId    String?  // null = permiso global del sistema
-  name        String   // "users.read", "appointments.create", "settings.update"
-  displayName String   // "Ver usuarios", "Crear citas", "Actualizar configuración"
+  id          String  @id @default(cuid())
+  tenantId    String? // null = permiso global del sistema
+  name        String // "users.read", "appointments.create", "settings.update"
+  displayName String // "Ver usuarios", "Crear citas", "Actualizar configuración"
   description String?
-  category    String?  // "users", "appointments", "settings", "reports"
-  
+  category    String? // "users", "appointments", "settings", "reports"
+
   // Configuración del permiso
   isSystemPermission Boolean @default(false)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+
   // Relaciones
   rolePermissions RolePermission[]
 
@@ -214,7 +217,7 @@ model RolePermission {
   tenantId     String
   roleId       String
   permissionId String
-  
+
   createdAt DateTime @default(now())
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -225,19 +228,200 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+// =============================================
+// SISTEMA DE PLANES Y FEATURES
+// =============================================
+
+model Plan {
+  id          String  @id @default(cuid())
+  name        String // "Básico", "Profesional", "Empresarial"
+  slug        String  @unique // "basic", "professional", "enterprise"
+  description String?
+
+  // Precios
+  monthlyPrice Decimal? @db.Decimal(10, 2) // Precio mensual
+  yearlyPrice  Decimal? @db.Decimal(10, 2) // Precio anual (con descuento)
+
+  // Configuración del plan
+  isActive   Boolean @default(true)
+  isPopular  Boolean @default(false) // Para destacar en UI
+  maxTenants Int? // Límite de tenants por usuario (null = ilimitado)
+  maxUsers   Int? // Límite de usuarios por tenant (null = ilimitado)
+
+  // Metadatos para MercadoPago
+  mercadoPagoMonthlyId String? // ID del plan mensual en MercadoPago
+  mercadoPagoYearlyId  String? // ID del plan anual en MercadoPago
+
+  // Orden para mostrar en UI
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  features      PlanFeature[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Feature {
+  id          String  @id @default(cuid())
+  key         String  @unique // "appointments", "advanced_reports", "api_access"
+  name        String // "Gestión de Citas", "Reportes Avanzados", "Acceso API"
+  description String?
+  category    String? // "core", "advanced", "integrations"
+
+  // Configuración de la feature
+  isCore   Boolean @default(false) // Features esenciales disponibles en todos los planes
+  isActive Boolean @default(true)
+
+  // Límites por defecto (pueden ser sobrescritos en PlanFeature)
+  defaultLimit       Int? // Límite por defecto (null = ilimitado)
+  defaultIsUnlimited Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  planFeatures PlanFeature[]
+
+  @@map("features")
+}
+
+model PlanFeature {
+  id        String @id @default(cuid())
+  planId    String
+  featureId String
+
+  // Configuración específica de la feature en este plan
+  isIncluded  Boolean @default(true)
+  isUnlimited Boolean @default(false)
+  limit       Int? // Límite específico para este plan (null si isUnlimited = true)
+
+  // Metadatos adicionales
+  metadata Json? // Para configuraciones específicas de la feature
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureId])
+  @@map("plan_features")
+}
+
+// =============================================
+// SISTEMA DE SUSCRIPCIONES
+// =============================================
+
+model Subscription {
+  id       String @id @default(cuid())
+  tenantId String
+  planId   String
+
+  // Información de la suscripción
+  status       String // "active", "pending", "cancelled", "expired", "suspended"
+  billingCycle String // "monthly", "yearly"
+
+  // Fechas importantes
+  startDate       DateTime
+  endDate         DateTime?
+  nextBillingDate DateTime?
+  cancelledAt     DateTime?
+
+  // Precios (guardamos histórico)
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("CLP")
+
+  // Integración con MercadoPago
+  mercadoPagoSubscriptionId String? @unique // ID de la suscripción en MercadoPago
+  mercadoPagoPreapprovalId  String? // ID de preapproval en MercadoPago
+  mercadoPagoPayerId        String? // ID del pagador en MercadoPago
+
+  // Configuración de renovación
+  autoRenew Boolean @default(true)
+
+  // Metadatos
+  metadata Json? // Para información adicional de facturación
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  // Relaciones
+  payments     Payment[]
+  usageRecords UsageRecord[]
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id             String @id @default(cuid())
+  subscriptionId String
+
+  // Información del pago
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("CLP")
+  status   String // "pending", "approved", "rejected", "cancelled", "refunded"
+
+  // Información de MercadoPago
+  mercadoPagoPaymentId String? @unique // ID del pago en MercadoPago
+  mercadoPagoStatus    String? // Estado del pago en MercadoPago
+  paymentMethodId      String? // Método de pago usado
+
+  // Fechas
+  paidAt   DateTime?
+  failedAt DateTime?
+
+  // Metadatos
+  metadata Json? // Información adicional del pago
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model UsageRecord {
+  id             String @id @default(cuid())
+  subscriptionId String
+  featureKey     String // Key de la feature utilizada
+
+  // Información del uso
+  usage  Int // Cantidad utilizada
+  period String // "2024-01", formato YYYY-MM para el mes
+
+  // Metadatos
+  metadata Json? // Información adicional del uso
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, featureKey, period])
+  @@map("usage_records")
+}
+
 // =======================================
 // MODELOS BASE PARA FUTURAS EXPANSIONES
 // =======================================
 
 model Service {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String
   name        String
   description String?
-  duration    Int    // Duración en minutos
+  duration    Int // Duración en minutos
   price       Decimal? @db.Decimal(10, 2)
-  isActive    Boolean @default(true)
-  
+  isActive    Boolean  @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -248,15 +432,15 @@ model Provider {
   id       String @id @default(cuid())
   tenantId String
   userId   String // Referencia al User que es provider
-  
+
   // Información profesional
   title       String? // Dr., Lic., etc.
   specialties String[]
   bio         String?
-  
+
   // Configuración de agenda
   isActive Boolean @default(true)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -266,23 +450,23 @@ model Provider {
 
 // Para futuras reservas
 model Appointment {
-  id         String   @id @default(cuid())
+  id         String  @id @default(cuid())
   tenantId   String
-  clientId   String   // userId del cliente
-  providerId String?  // userId del proveedor
+  clientId   String // userId del cliente
+  providerId String? // userId del proveedor
   serviceId  String?
-  
+
   // Detalles de la cita
   title       String
   description String?
   startTime   DateTime
   endTime     DateTime
-  status      String @default("scheduled") // scheduled, confirmed, cancelled, completed
-  
+  status      String   @default("scheduled") // scheduled, confirmed, cancelled, completed
+
   // Metadatos
-  notes      String?
-  metadata   Json?
-  
+  notes    String?
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

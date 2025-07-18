@@ -23,7 +23,13 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:init": "npx ts-node scripts/initialize-plans-features.ts",
+    "db:init-features": "npx ts-node scripts/initialize-plans-features.ts features",
+    "db:init-plans": "npx ts-node scripts/initialize-plans-features.ts plans",
+    "db:validate": "npx ts-node scripts/initialize-plans-features.ts validate",
+    "db:stats": "npx ts-node scripts/initialize-plans-features.ts stats",
+    "db:init-roles": "npx ts-node scripts/initialize-roles.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -33,13 +39,15 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-fastify": "^11.1.4",
     "@prisma/client": "^6.12.0",
+    "@types/mercadopago": "^1.5.11",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "google-auth-library": "^10.1.0",
+    "mercadopago": "^2.8.0",
+    "nodemailer": "^6.9.8",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "nodemailer": "^6.9.8"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -53,6 +61,7 @@
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.7",
+    "@types/nodemailer": "^6.4.14",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
@@ -68,8 +77,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0",
-     "@types/nodemailer": "^6.4.14"
+    "typescript-eslint": "^8.20.0"
   },
   "jest": {
     "moduleFileExtensions": [
